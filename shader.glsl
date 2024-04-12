@@ -125,8 +125,8 @@ float heart_partial(vec2 uvpos, float z, float l, float t) {
     float radius = sqrt(0.5*0.5 + 0.5*0.5);
     v += line_neon_partial(uvpos, vec2(0.0, -1.0), vec2(1.0, 0.0), z, s1, t1);
     v += arc_neon(uvpos, vec3(0.5, 0.5, z), radius, M_PI*(3.0/4.0)-t2*M_PI, M_PI*(3.0/4.0)-s2*M_PI);
-    v += line_neon_partial(uvpos, vec2(-1.0, 0.0), vec2(0.0, -1.0), z, s4, t4);
     v += arc_neon(uvpos, vec3(-0.5, 0.5, z), radius, M_PI*(1.0/4.0)-t3*M_PI, M_PI*(1.0/4.0)-s3*M_PI);
+    v += line_neon_partial(uvpos, vec2(-1.0, 0.0), vec2(0.0, -1.0), z, s4, t4);
     return v;
 }
 
