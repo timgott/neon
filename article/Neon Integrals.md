@@ -423,7 +423,7 @@ void mainImage(out vec4 outColor, in vec2 pos) {
 
 </div>
 
-Great! We can now build shapes out of arcs and lines[^nobezier].
+Great! We can build shapes out of arcs and lines[^nobezier].
 
 [^nobezier]: It would also be nice to have [Bézier curves][bezier], but the
 computer cannot find the integral for them.
@@ -441,6 +441,11 @@ You can compute the distance to the line and compute the falloff based on that, 
 Now combine:
 
 <div class="shader animated">
+
+<canvas class="big"></canvas>
+
+<details>
+<summary>Code</summary>
 
 ```glsl {.shader-main}
 
@@ -499,22 +504,22 @@ float heartbeat(float t) {
 }
 
 vec4 demoBeatingHeart(vec2 uvpos) {
-    const float iTime = 14.5;
+    float time = iTime + 21.0;
     float bpmFactor = 80.0/60.0;
-    float beat = heartbeat(iTime*bpmFactor);
-    float phasing = (sin(iTime*1.3)+1.0)*0.5;
-    float intensity = 0.4+0.2*beat;
+    float beat = heartbeat(time*bpmFactor);
+    float phasing = (sin(time*1.3)+1.0)*0.5;
+    float intensity = 0.3+0.2*beat;
     float z = 0.02 + 0.02 * beat;
     vec3 pink = vec3(0.9,0.2,1.0);
     vec3 red = vec3(0.8,0.1,0.3)*1.5; // perceived brightness multiplier
     vec3 blue = vec3(0.1,0.3,0.9);
     vec3 yellow = vec3(1.0,0.2,0.1);
     vec2 center = iResolution.xy * 0.5;
-    float s = 90.0 + beat*10.0;
+    float s = 100.0 + beat*10.0;
     uvpos /= s;
     vec3 c;
-    c += red * intensity * heartAnimated(uvpos, z, 1.5, iTime * bpmFactor * 1.0 + 0.0);
-    c += blue * 0.1 * heartAnimated(uvpos, z, 2.0, iTime*0.3+1.0);
+    c += red * intensity * heartAnimated(uvpos, z, 1.5, time * bpmFactor * 1.0 + 0.0);
+    c += blue * 0.1 * heartAnimated(uvpos, z, 2.0, time*0.3+1.0);
     c += pink * 1.0 * pointLight(vec3(uvpos, z), vec3(0.0, 0.2, 0.5+beat*0.2));
     return vec4(tonemap(c), 1.0);
 }
@@ -526,8 +531,6 @@ void mainImage(out vec4 out_color, in vec2 uvpos) {
 
 ```
 
-<canvas class="big"></canvas>
+</details>
 
 </div>
-
-TODO: INSERT HEART SHADER

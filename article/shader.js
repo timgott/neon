@@ -21,6 +21,33 @@ uniform vec2 iResolution;
 uniform float iTime;
 `
 
+const pauseFragmentFooter = `
+float antialias(float line, float pos) {
+  return smoothstep(line + 2.0, line, pos);
+}
+
+vec4 playTriangle(vec2 pos, float radius) {
+    float x = (pos.x / (radius*1.5)) + 0.5;
+    float height = radius;
+    float topLine = mix(height, 0.0, x);
+    return vec4(
+      antialias(topLine, pos.y) *
+      antialias(topLine, -pos.y) *
+      antialias(radius, -pos.x)
+    );
+}
+
+void main() {
+    vec2 center = iResolution.xy * 0.5;
+    vec4 outColor = vec4(0.0);
+    mainImage(outColor, gl_FragCoord.xy - center);
+    gl_FragColor += outColor * 0.25;
+
+    vec4 overlay = 0.75 * playTriangle(gl_FragCoord.xy - center, 50.0);
+    gl_FragColor = gl_FragColor * (1.0 - overlay.a) + overlay;
+}
+`
+
 const fragmentShaderFooter = `
 void main() {
     vec2 center = iResolution.xy * 0.5;
@@ -57,6 +84,10 @@ class FullscreenShaderRenderer {
 
   draw(program) {
     this.gl.useProgram(program);
+
+    // pass time to program
+    const time = performance.now() / 1000.0;
+    gl.uniform1f(gl.getUniformLocation(program, "iTime"), time);
 
     // pass canvas size to program
     gl.uniform2f(
@@ -117,12 +148,45 @@ function initShader(rootElement, shaderLibCode) {
   }
 
   const renderer = new FullscreenShaderRenderer(gl);
-  renderer.draw(program);
-  renderer.cleanup();
 
-  if (program) {
-    gl.deleteProgram(program);
+  const isAnimated = rootElement.classList.contains("animated");
+
+  if (isAnimated) {
+    const pauseProgram = createPauseOverlayProgram(gl, shaderLibCode, mainCode);
+    startPausableShader(program, pauseProgram, canvas, renderer);
+  } else {
+    renderer.draw(program);
+    renderer.cleanup();
+
+    if (program) {
+      gl.deleteProgram(program);
+    }
   }
+}
+
+function createPauseOverlayProgram(gl, shaderLibCode, mainCode) {
+  const pauseCode = fragmentShaderHeader + shaderLibCode + mainCode + pauseFragmentFooter;
+  return compileProgram(gl, vertexShaderSource, pauseCode);
+}
+
+function startPausableShader(program, pauseProgram, canvas, renderer) {
+  let paused = true;
+
+  function render() {
+    if (paused) {
+      renderer.draw(pauseProgram);
+    } else {
+      renderer.draw(program);
+      requestAnimationFrame(render);
+    }
+  }
+
+  canvas.addEventListener("pointerdown", () => {
+    paused = !paused;
+    render();
+  });
+
+  render();
 }
 
 function createRenderingContext(canvas) {
