@@ -438,7 +438,7 @@ You can compute the distance to the line and compute the falloff based on that, 
 
 ## NEON ART
 
-Now combine:
+That's it! We made shapes of light by deriving analytical integrals. There is much more that you can do with shaders, but I haven't seen this approach elsewhere. Have fun!
 
 <div class="shader animated">
 
@@ -530,7 +530,11 @@ void mainImage(out vec4 out_color, in vec2 uvpos) {
 }
 
 ```
-
+playing
 </details>
 
 </div>
+
+
+<!--If you are interested in playing with shaders, I can also recommend the material by [Inigo Quilez](https://www.youtube.com/@InigoQuilez) if you want an inspiration on what is possible!-->
+
