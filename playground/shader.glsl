@@ -32,14 +32,54 @@ float line_neon_partial(vec2 uvpos, vec2 start, vec2 end, float z, float t0, flo
     return line_neon_integral(vec3(proj, z), t0*l, t1*l);
 }
 
+// different form for neon line
+struct Line {
+    vec2 start;
+    vec2 end;
+};
+
+float neonLine(vec2 p, Line line, float z) {
+    // move start to origin
+    p = p - line.start;
+    vec2 q = line.end - line.start;
+
+    // made from manual simplification of Wolfram Alpha integral
+    float a = dot(q, q); // u^2 + v^2
+    float b = dot(q, p); // u*x + v*y
+    float c = q.y*p.x - q.x*p.y; // v*x - u*y
+    float r = 1.0/sqrt(z*z*a + c*c);
+    float len = sqrt(a); // additional correction for line length
+    float F1 = atan((a - b)*r); // t=1
+    float F0 = atan(-b*r); // t=0
+    return (F1 - F0)*r * len;
+}
+
+float neonLineAnimated(vec2 p, Line line, float z, float t, float trail) {
+    float t0 = clamp(t - trail, 0.0, 1.0);
+    float t1 = clamp(t, 0.0, 1.0);
+    vec2 p0 = mix(line.start, line.end, t0);
+    vec2 p1 = mix(line.start, line.end, t1);
+    if (t0 == t1) {
+        return 0.0;
+    }
+    return neonLine(p, Line(p0, p1), z);
+}
+
 // antiderivative of point_light integrated over an arc from (1,0,0) to p
-float arc_neon_F(vec3 p, float r, float t) {
+float arc_neon_F(vec3 p, float t) {
     vec3 psqr = p*p;
-    float rsqr = r*r;
-    float d = 2.0*r;
     float v1 = inversesqrt(2.0*(psqr.x*psqr.y + psqr.x*psqr.z - psqr.x + psqr.y*psqr.z - psqr.y + psqr.z) + 1.0 + psqr.x*psqr.x + psqr.y*psqr.y + psqr.z*psqr.z);
     float v2 = tan(0.5*t);
     return 2.0*v1*(atan(v1*(v2*(psqr.x + psqr.y + psqr.z + 2.0*p.y + 1.0) - 2.0*p.x)) + M_PI*floor(0.5*(t/M_PI + 1.0)));
+}
+
+float arc_neon_F2(vec3 p, float t) {
+    vec3 psqr = p*p;
+    float v1 = psqr.x + psqr.y + 1.0;
+    float v2 = psqr.x + psqr.y - 1.0;
+    float v3 = tan(0.5*t)*(psqr.x + psqr.y + psqr.z + 2.0*p.y + 1.0) - 2.0*p.x;
+    float r = 1.0/sqrt(2.0*psqr.z * v1 + v2*v2 + psqr.z*psqr.z);
+    return 2.0*atan(v3*r)*r;
 }
 
 float arc_neon(
@@ -51,7 +91,7 @@ float arc_neon(
 ) {
     // TODO: think about compensation and scaling for radius more thoroughly
     vec3 p = vec3((uvpos.xy - center.xy) / radius, center.z / radius);
-    return (arc_neon_F(p, 1.0, end) - arc_neon_F(p, 1.0, start)) / radius;
+    return (arc_neon_F(p, end) - arc_neon_F(p, start)) / radius;
 }
 
 float rounded_rectangle_neon(
@@ -112,21 +152,23 @@ float sequence(float t, float period, float offset, float duration) {
 }
 
 float heart_partial(vec2 uvpos, float z, float l, float t) {
-    float t1 = sequence(t - 0.0, 4.0, 0.0, 1.0);
-    float s1 = sequence(t - 0.0, 4.0, -l, 1.0);
-    float t2 = sequence(t - 1.0, 4.0, 0.0, 1.0);
-    float s2 = sequence(t - 1.0, 4.0, -l, 1.0);
-    float t3 = sequence(t - 2.0, 4.0, 0.0, 1.0);
-    float s3 = sequence(t - 2.0, 4.0, -l, 1.0);
-    float t4 = sequence(t - 3.0, 4.0, 0.0, 1.0);
-    float s4 = sequence(t - 3.0, 4.0, -l, 1.0);
+    const float period = 4.0;
+    float t1 = mod(t - 0.0, period);
+    float t2 = sequence(t - 1.0, period, 0.0, 1.0);
+    float s2 = sequence(t - 1.0, period, -l, 1.0);
+    float t3 = sequence(t - 2.0, period, 0.0, 1.0);
+    float s3 = sequence(t - 2.0, period, -l, 1.0);
+    float t4 = mod(t - 3.0, period);
     float v;
     float quarter = M_PI * 0.5;
     float radius = sqrt(0.5*0.5 + 0.5*0.5);
-    v += line_neon_partial(uvpos, vec2(0.0, -1.0), vec2(1.0, 0.0), z, s1, t1);
+
+    Line lineR = Line(vec2(0.0, -1.0), vec2(1.0, 0.0));
+    Line lineL = Line(vec2(-1.0, 0.0), vec2(0.0, -1.0));
+    v += neonLineAnimated(uvpos, lineR, z, t1, l);
     v += arc_neon(uvpos, vec3(0.5, 0.5, z), radius, M_PI*(3.0/4.0)-t2*M_PI, M_PI*(3.0/4.0)-s2*M_PI);
     v += arc_neon(uvpos, vec3(-0.5, 0.5, z), radius, M_PI*(1.0/4.0)-t3*M_PI, M_PI*(1.0/4.0)-s3*M_PI);
-    v += line_neon_partial(uvpos, vec2(-1.0, 0.0), vec2(0.0, -1.0), z, s4, t4);
+    v += neonLineAnimated(uvpos, lineL, z, t4, l);
     return v;
 }
 
@@ -156,7 +198,7 @@ vec4 demo_beating_heart(vec2 uvpos) {
     uvpos -= center;
     uvpos /= s;
     vec3 c;
-    c += red * intensity * heart_partial(uvpos, z, 1.5, iTime * bpmFactor * 1.0 + 0.0);
+    //c += red * intensity * heart_partial(uvpos, z, 1.5, iTime * bpmFactor * 1.0 + 0.0);
     c += blue * 0.1 * heart_partial(uvpos, z, 2.0, iTime*0.3+1.0);
     c += pink * 1.0 * point_light(vec3(uvpos, z), vec3(0.0, 0.2, 0.5+beat*0.2));
     return vec4(tonemap2(c), 1.0);
