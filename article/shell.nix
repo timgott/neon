@@ -5,7 +5,7 @@ pkgs.mkShell {
   shellHook = ''
     echo
     echo Run:
-    echo '  ls *.md | entr -s "pandoc <Neon\ Integrals.md --standalone --mathjax > generated.html"'
+    echo '  ls *.md | entr -s "pandoc <Neon\ Integrals.md --standalone --mathml -o generated.html"'
     echo '  live-server'
     echo
   '';

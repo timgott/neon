@@ -1,7 +1,5 @@
 // based on https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/By_example/Textures_from_code
 
-window.addEventListener("load", setupOnLoad, false);
-
 let gl;
 let program;
 
@@ -16,37 +14,24 @@ void main() {
 }
 `
 
-const fragmentShaderSource_test = `
-#version 100
-precision mediump float;
-void main() {
-    vec2 fragmentPosition = 2.0*gl_PointCoord - 1.0;
-    float dist = length(fragmentPosition);
-    float distSqr = dist * dist;
-    gl_FragColor = vec4(
-        0.2/distSqr,
-        0.1/distSqr,
-        0.0, 1.0
-    );
-}
-`
-
 const fragmentShaderHeader = `
 #version 100
 precision highp float;
 uniform vec2 iResolution;
+uniform float iTime;
 `
 
 const fragmentShaderFooter = `
 void main() {
-    mainImage(gl_FragColor, gl_FragCoord.xy);
+    vec2 center = iResolution.xy * 0.5;
+    mainImage(gl_FragColor, gl_FragCoord.xy - center);
 }
 `
 
 
-function setupOnLoad(evt) {
-  window.removeEventListener(evt.type, setupOnLoad, false);
-  document.querySelectorAll(".shader").forEach(initShader);
+function setupOnLoad() {
+  const shaderLib = [...document.querySelectorAll(".shader-lib")].map(e => e.textContent).join("\n");
+  document.querySelectorAll(".shader").forEach((element) => initShader(element, shaderLib));
 }
 
 class FullscreenShaderRenderer {
@@ -112,21 +97,21 @@ function compileProgram(gl, vertexShaderSource, fragmentShaderSource) {
   return program;
 }
 
-function initShader(rootElement) {
+function initShader(rootElement, shaderLibCode) {
   // take text content of script as shader source
-  const code = rootElement.querySelector(".shader-code").textContent;
-  console.log(code);
+  const mainCode = rootElement.querySelector(".shader-main").textContent;
 
   const canvas = rootElement.querySelector("canvas");
 
   // create canvas and GL rendering context
   if (!(gl = createRenderingContext(canvas))) return;
   
-  const fragmentShaderSource = fragmentShaderHeader + code + fragmentShaderFooter;
+  const fragmentShaderSource = fragmentShaderHeader + shaderLibCode + mainCode + fragmentShaderFooter;
   const program = compileProgram(gl, vertexShaderSource, fragmentShaderSource);
 
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     const linkErrLog = gl.getProgramInfoLog(program);
+    console.log(fragmentShaderSource);
     putError(rootElement, `Shader program did not link successfully. Error log: ${linkErrLog}`);
     return;
   }
@@ -162,3 +147,5 @@ function putError(rootElement, errorText) {
   text.textContent = errorText;
   text.style.color = "red";
 }
+
+setupOnLoad();
