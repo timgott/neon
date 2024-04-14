@@ -1,6 +1,9 @@
 { pkgs ? import <nixpkgs> {} }:
+let
+unstable = import <nixos-unstable> {};
+in
 pkgs.mkShell {
-  packages = [ pkgs.sage pkgs.fricas pkgs.nodejs_21 pkgs.pandoc pkgs.entr ];
+  packages = [ unstable.sage pkgs.fricas ];
 
   shellHook = ''
     echo
