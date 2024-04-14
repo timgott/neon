@@ -1,10 +1,8 @@
-#!/usr/bin/env bash
-
 mdfile=Neon\ Integrals.md
 jsfiles=shader.js
 
 outpath=build
-outfile=$(outpath)/neon.html
+outfile=$(outpath)/index.html
 
 outjs=$(addprefix $(outpath)/,$(jsfiles))
 

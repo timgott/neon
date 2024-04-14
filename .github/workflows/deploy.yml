@@ -1,4 +1,4 @@
-name: Build page with parcel
+name: Build page
 
 on:
   push:
@@ -14,13 +14,13 @@ jobs:
     # checkout repo
     - uses: actions/checkout@v3
 
-    - name: Install pandoc
-      run: sudo apt-get -y install pandoc make
+    - uses: cachix/install-nix-action@v22
+      with:
+        nix_path: nixpkgs=channel:nixos-23.11
 
-    # Build with parcel (--public-url prepended to all urls)
-    - name: Build
-      run: |
-        make -C article
+    - name: Run builder in nix
+      working-directory: article
+      run: nix-shell build-shell.nix --run "make"
 
     - name: Upload pages artifact
       uses: actions/upload-pages-artifact@v2
