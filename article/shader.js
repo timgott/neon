@@ -27,13 +27,14 @@ float antialias(float line, float pos) {
 }
 
 vec4 playTriangle(vec2 pos, float radius) {
-    float x = (pos.x / (radius*1.5)) + 0.5;
+    float width = radius * 0.75;
     float height = radius;
+    float x = (pos.x / (width*2.0)) + 0.5;
     float topLine = mix(height, 0.0, x);
     return vec4(
       antialias(topLine, pos.y) *
       antialias(topLine, -pos.y) *
-      antialias(radius, -pos.x)
+      antialias(width, -pos.x)
     );
 }
 
@@ -43,7 +44,7 @@ void main() {
     mainImage(outColor, gl_FragCoord.xy - center);
     gl_FragColor += outColor * 0.25;
 
-    vec4 overlay = 0.75 * playTriangle(gl_FragCoord.xy - center, 50.0);
+    vec4 overlay = 0.75 * playTriangle(gl_FragCoord.xy - center, 80.0);
     gl_FragColor = gl_FragColor * (1.0 - overlay.a) + overlay;
 }
 `
