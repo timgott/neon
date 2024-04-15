@@ -530,7 +530,7 @@ void mainImage(out vec4 out_color, in vec2 uvpos) {
 }
 
 ```
-playing
+
 </details>
 
 </div>
