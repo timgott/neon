@@ -5,7 +5,7 @@ pkgs.mkShell {
   shellHook = ''
     echo
     echo Run:
-    echo '  ls *.md | entr -s make'
+    echo '  ls *.md *.js | entr make'
     echo '  live-server'
     echo
   '';
