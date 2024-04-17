@@ -3,22 +3,26 @@
 let gl;
 let program;
 
-const vertexShaderSource = `
-#version 100
+const vertexShaderSource = `#version 100
 precision highp float;
+uniform vec2 iResolution;
 
 attribute vec2 position;
+varying vec2 v_FragPos;
 
 void main() {
     gl_Position = vec4(position, 0.0, 1.0);
+    v_FragPos = (position * 0.5) * iResolution.xy; // centered coordinate
 }
 `
 
-const fragmentShaderHeader = `
-#version 100
+const fragmentShaderHeader = `#version 100
 precision highp float;
 uniform vec2 iResolution;
 uniform float iTime;
+
+varying vec2 v_FragPos;
+
 `
 
 const pauseFragmentFooter = `
@@ -39,12 +43,11 @@ vec4 playTriangle(vec2 pos, float radius) {
 }
 
 void main() {
-    vec2 center = iResolution.xy * 0.5;
     vec4 outColor = vec4(0.0);
-    mainImage(outColor, gl_FragCoord.xy - center);
+    mainImage(outColor, v_FragPos.xy);
     gl_FragColor += outColor * 0.25;
 
-    vec4 overlay = 0.75 * playTriangle(gl_FragCoord.xy - center, 80.0);
+    vec4 overlay = 0.75 * playTriangle(v_FragPos.xy, 80.0);
     gl_FragColor = gl_FragColor * (1.0 - overlay.a) + overlay;
 }
 `
@@ -52,14 +55,27 @@ void main() {
 const fragmentShaderFooter = `
 void main() {
     vec2 center = iResolution.xy * 0.5;
-    mainImage(gl_FragColor, gl_FragCoord.xy - center);
+    mainImage(gl_FragColor, v_FragPos.xy);
+    //gl_FragColor = vec4(v_FragPos.xy / iResolution.xy, 0.0, 1.0);
+    //gl_FragColor = vec4(gl_FragCoord.xy / iResolution.xy, 0.0, 1.0);
 }
 `
 
 
 function setupOnLoad() {
+  const canvas = document.body.appendChild(createOverlayCanvas());
+  
+  const gl = createRenderingContext(canvas);
+  if (!gl) return;
+
+  // concat shader lib to single header
   const shaderLib = [...document.querySelectorAll(".shader-lib")].map(e => e.textContent).join("\n");
-  document.querySelectorAll(".shader").forEach((element) => initShader(element, shaderLib));
+
+  // compile and add shader elements
+  const manager = new ShaderManager(gl, canvas);
+  document.querySelectorAll(".shader").forEach((element) => initShader(gl, element, shaderLib, manager));
+
+  manager.run();
 }
 
 class FullscreenShaderRenderer {
@@ -83,18 +99,28 @@ class FullscreenShaderRenderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   }
 
-  draw(program) {
+  draw(program, bounds, time) {
+    if (bounds.bottom < 0 || bounds.top > this.gl.drawingBufferHeight
+      || bounds.left < 0 || bounds.right > this.gl.drawingBufferWidth) {
+        return
+    }
+
     this.gl.useProgram(program);
 
+    this.gl.enable(this.gl.SCISSOR_TEST);
+    // y coordinate is from bottom
+    const bottom = this.gl.drawingBufferHeight - bounds.bottom;
+    this.gl.scissor(bounds.left, bottom, bounds.width, bounds.height);
+    this.gl.viewport(bounds.left, bottom, bounds.width, bounds.height);
+
     // pass time to program
-    const time = performance.now() / 1000.0;
-    gl.uniform1f(gl.getUniformLocation(program, "iTime"), time);
+    this.gl.uniform1f(this.gl.getUniformLocation(program, "iTime"), time / 1000.0);
 
     // pass canvas size to program
-    gl.uniform2f(
-      gl.getUniformLocation(program, "iResolution"),
-      gl.drawingBufferWidth,
-      gl.drawingBufferHeight
+    this.gl.uniform2f(
+      this.gl.getUniformLocation(program, "iResolution"),
+      bounds.width,
+      bounds.height
     );
 
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
@@ -118,7 +144,7 @@ function compileProgram(gl, vertexShaderSource, fragmentShaderSource) {
   gl.shaderSource(fragmentShader, fragmentShaderSource)
   gl.compileShader(fragmentShader);
   gl.attachShader(program, fragmentShader);
-  
+
   gl.linkProgram(program);
 
   gl.detachShader(program, vertexShader);
@@ -129,15 +155,90 @@ function compileProgram(gl, vertexShaderSource, fragmentShaderSource) {
   return program;
 }
 
-function initShader(rootElement, shaderLibCode) {
-  // take text content of script as shader source
+// holds the programs associated with each canvas
+// tracks running animation and pausing
+class ShaderManager {
+  gl
+  canvas
+  renderer
+  staticShaders = new Set()
+  animatedShader = null
+
+  constructor(gl, canvas) {
+    this.gl = gl
+    this.canvas = canvas
+    this.renderer = new FullscreenShaderRenderer(gl);
+  }
+
+  run() {
+    window.addEventListener("resize", () => this.onViewportChanged(), { passive: true });
+    window.addEventListener("scroll", () => this.onViewportChanged(), { passive: true });
+    this.requestFrame();
+  }
+
+  createShaderElement(element, program, animatedProgram = null) {
+    return {
+      element,
+      program,
+      animatedProgram
+    }
+  }
+
+  addStaticShader(container, program) {
+    this.staticShaders.add(this.createShaderElement(container, program));
+  }
+
+  play(animatedElement) {
+    this.animatedShader = animatedElement;
+    this.staticShaders.delete(animatedElement);
+  }
+
+  pause() {
+    this.staticShaders.add(this.animatedShader);
+    this.animatedShader = null;
+  }
+
+  addAnimatedShader(container, runningProgram, pausedProgram) {
+    const shaderElem = this.createShaderElement(container, pausedProgram, runningProgram);
+
+    this.canvas.addEventListener("mousedown", () => {
+      if (this.animatedShader === shaderElem) {
+        this.pause();
+      } else {
+        this.play(shaderElem);
+      } 
+    }, { passive: true });
+
+    this.staticShaders.add(shaderElem);
+  }
+
+  drawElement(shaderElement, time) {
+    const bounds = shaderElement.element.getBoundingClientRect();
+    this.renderer.draw(shaderElement.program, bounds, time);
+  }
+
+  frameRequested = false
+  drawFrame(time) {
+    this.gl.clearColor(1.0, 0.0, 1.0, 1.0);
+    this.staticShaders.forEach(shaderElement => this.drawElement(shaderElement, time));
+    this.frameRequested = false;
+  }
+
+  requestFrame() {
+    if (!this.frameRequested) {
+      this.frameRequested = true;
+      requestAnimationFrame(() => this.drawFrame());
+    }
+  }
+
+  onViewportChanged() {
+    resizeCanvas(this.canvas);
+    this.requestFrame();
+  }
+}
+
+function initShader(gl, rootElement, shaderLibCode, shaderManager) {
   const mainCode = rootElement.querySelector(".shader-main").textContent;
-
-  const canvas = rootElement.querySelector("canvas");
-
-  // create canvas and GL rendering context
-  if (!(gl = createRenderingContext(canvas))) return;
-  
   const fragmentShaderSource = fragmentShaderHeader + shaderLibCode + mainCode + fragmentShaderFooter;
   const program = compileProgram(gl, vertexShaderSource, fragmentShaderSource);
 
@@ -148,20 +249,14 @@ function initShader(rootElement, shaderLibCode) {
     return;
   }
 
-  const renderer = new FullscreenShaderRenderer(gl);
-
   const isAnimated = rootElement.classList.contains("animated");
+  const container = rootElement.querySelector("canvas");
 
   if (isAnimated) {
     const pauseProgram = createPauseOverlayProgram(gl, shaderLibCode, mainCode);
-    startPausableShader(program, pauseProgram, canvas, renderer);
+    shaderManager.addAnimatedShader(container, program, pauseProgram);
   } else {
-    renderer.draw(program);
-    renderer.cleanup();
-
-    if (program) {
-      gl.deleteProgram(program);
-    }
+    shaderManager.addStaticShader(container, program);
   }
 }
 
@@ -170,29 +265,7 @@ function createPauseOverlayProgram(gl, shaderLibCode, mainCode) {
   return compileProgram(gl, vertexShaderSource, pauseCode);
 }
 
-function startPausableShader(program, pauseProgram, canvas, renderer) {
-  let paused = true;
-
-  function render() {
-    if (paused) {
-      renderer.draw(pauseProgram);
-    } else {
-      renderer.draw(program);
-      requestAnimationFrame(render);
-    }
-  }
-
-  canvas.addEventListener("pointerdown", () => {
-    paused = !paused;
-    render();
-  });
-
-  render();
-}
-
 function createRenderingContext(canvas) {
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
   const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
   if (!gl) {
     alert(
@@ -201,10 +274,31 @@ function createRenderingContext(canvas) {
     );
     return null;
   }
-  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  resizeCanvas(canvas);
   return gl;
+}
+
+function createOverlayCanvas() {
+  const overlay = document.createElement("canvas");
+  overlay.style.position = "absolute";
+  overlay.style.top = "0";
+  overlay.style.left = "0";
+  overlay.style.pointerEvents = "none";
+  overlay.style.width = "1px";
+  overlay.style.height = "1px";
+  overlay.style.transformOrigin = "0 0";
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function resizeCanvas(canvas) {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  canvas.style.transform = `translate(${window.scrollX}px, ${window.scrollY}px) scale(${w},${h})`;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
 }
 
 function putError(rootElement, errorText) {

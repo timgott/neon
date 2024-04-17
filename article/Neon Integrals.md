@@ -80,7 +80,7 @@ void mainImage(out vec4 outColor, in vec2 pos) {
     outColor = vec4(tonemap(c), 0.0);
 }
 </script>
-<canvas>This canvas should show an example shader</canvas>
+<canvas></canvas>
 </div>
 
 We will start by drawing a point light, then we will extend the point to a line by deriving an integral automatically.
