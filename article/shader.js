@@ -180,7 +180,8 @@ class ShaderManager {
     return {
       element,
       program,
-      animatedProgram
+      animatedProgram,
+      time: 0.0
     }
   }
 
@@ -189,11 +190,16 @@ class ShaderManager {
   }
 
   play(animatedElement) {
+    if (this.animatedShader === null) {
+      // start animation
+      this.requestFrame();
+    }
     this.animatedShader = animatedElement;
     this.staticShaders.delete(animatedElement);
   }
 
   pause() {
+    this.drawElement(this.animatedShader.element, this.animatedShader.program, performance.now());
     this.staticShaders.add(this.animatedShader);
     this.animatedShader = null;
   }
@@ -201,38 +207,47 @@ class ShaderManager {
   addAnimatedShader(container, runningProgram, pausedProgram) {
     const shaderElem = this.createShaderElement(container, pausedProgram, runningProgram);
 
-    this.canvas.addEventListener("mousedown", () => {
+    container.addEventListener("mousedown", () => {
       if (this.animatedShader === shaderElem) {
         this.pause();
       } else {
         this.play(shaderElem);
-      } 
+      }
     }, { passive: true });
 
     this.staticShaders.add(shaderElem);
   }
 
-  drawElement(shaderElement, time) {
-    const bounds = shaderElement.element.getBoundingClientRect();
-    this.renderer.draw(shaderElement.program, bounds, time);
+  drawElement(container, program, time) {
+    const bounds = container.getBoundingClientRect();
+    this.renderer.draw(program, bounds, time);
   }
 
   frameRequested = false
   drawFrame(time) {
-    this.gl.clearColor(1.0, 0.0, 1.0, 1.0);
-    this.staticShaders.forEach(shaderElement => this.drawElement(shaderElement, time));
     this.frameRequested = false;
+    resizeCanvas(this.canvas);
+    this.gl.disable(this.gl.SCISSOR_TEST);
+    this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+    this.staticShaders.forEach(s => this.drawElement(s.element, s.program, s.time));
+    if (this.animatedShader) {
+      console.log("Animate")
+      const shader = this.animatedShader;
+      shader.time = time;
+      this.drawElement(shader.element, shader.animatedProgram, shader.time);
+      this.requestFrame();
+    }
   }
 
   requestFrame() {
     if (!this.frameRequested) {
       this.frameRequested = true;
-      requestAnimationFrame(() => this.drawFrame());
+      requestAnimationFrame((t) => this.drawFrame(t));
     }
   }
 
   onViewportChanged() {
-    resizeCanvas(this.canvas);
     this.requestFrame();
   }
 }
@@ -294,7 +309,10 @@ function createOverlayCanvas() {
 function resizeCanvas(canvas) {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  canvas.style.transform = `translate(${window.scrollX}px, ${window.scrollY}px) scale(${w},${h})`;
+  const transform = `translate(${window.scrollX}px, ${window.scrollY}px) scale(${w},${h})`
+  if (canvas.style.transform !== transform) {
+    canvas.style.transform = transform;
+  }
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width = w;
     canvas.height = h;
