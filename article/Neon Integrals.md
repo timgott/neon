@@ -1,15 +1,26 @@
 ---
 title: Neon Integrals
+date: April 2024
 header-includes: |
     <style>
-    .shader canvas {
+    .shader .canvas {
         background: black;
         width: 100%;
         height: 200pt;
-        margin: 12pt 0px;
+        margin: 24pt 0pt;
     }
     .shader .big {
         height: 400pt;
+    }
+    label {
+        display: flex;
+        align-items: center;
+        gap: 1em;
+    }
+    .control-box {
+        border: solid #bbb;
+        padding: 1em;
+        margin-bottom: -12pt;
     }
     </style>
 include-after: <script src="./shader.js"></script>
@@ -80,7 +91,7 @@ void mainImage(out vec4 outColor, in vec2 pos) {
     outColor = vec4(tonemap(c), 0.0);
 }
 </script>
-<canvas></canvas>
+<div class="canvas"></div>
 </div>
 
 We will start by drawing a point light, then we will extend the point to a line by deriving an integral automatically.
@@ -127,7 +138,7 @@ void mainImage(out vec4 outColor, in vec2 coord) {
     outColor = vec4(rgb,0.0);
 }
 ```
-<canvas></canvas>
+<div class="canvas"></div>
 </div>
 
 Good, but distorted: the circle in the middle is caused by clipping. We can compress light intensity to perceived brightness with [exposure][] and [gamma correction][]:
@@ -136,12 +147,14 @@ Good, but distorted: the circle in the middle is caused by clipping. We can comp
 [gamma correction]: https://en.wikipedia.org/wiki/Gamma_correction
 
 <div class="shader">
+
 <div class="shader-code">
 
 ```glsl {.shader-lib}
 // Gamma correction
+uniform float gammaSlider; // Move the slider!
 vec3 gamma(vec3 x, float gamma) {
-    return pow(x, vec3(1.0 / gamma));
+    return pow(x, vec3(1.0 / gammaSlider));
 }
 
 // Exponential exposure
@@ -186,7 +199,21 @@ void mainImage(out vec4 outColor, in vec2 coord) {
 }
 </script>
 </div>
-<canvas></canvas>
+
+<label class="control-box">
+Gamma: 
+<input
+    class="shader-input"
+    data-uniform="gammaSlider"
+    type="range" min="0.5" value="1.5" max="3.0" step="0.01"
+    list="gamma-ticks"
+>
+<datalist id="gamma-ticks">
+    <option value="1.5"></option>
+</datalist>
+</label>
+
+<div class="canvas"></div>
 </div>
 
 This looks better. If you want multiple lights, take the sum of their intensities:
@@ -212,7 +239,7 @@ void mainImage(out vec4 outColor, in vec2 coord) {
 }
 ```
 
-<canvas></canvas>
+<div class="canvas"></div>
 </div>
 
 ## Integrating the line
@@ -242,7 +269,7 @@ void mainImage(out vec4 outColor, in vec2 coord) {
 }
 </script>
 
-<canvas></canvas>
+<div class="canvas"></div>
 </div>
 
 With 20 points, you can still see gaps. Increase it to 50:
@@ -268,7 +295,7 @@ void mainImage(out vec4 outColor, in vec2 coord) {
 }
 </script>
 
-<canvas></canvas>
+<div class="canvas"></div>
 </div>
 
 Now this looks cool! But what did it cost? Loops are expensive in shaders and the longer the line, the more points you need. This technique works fine for a static illustration like here, but it needs to be more efficient for a real time animation.
@@ -348,7 +375,7 @@ void mainImage(out vec4 outColor, in vec2 coord) {
 }
 ```
 
-<canvas></canvas>
+<div class="canvas"></div>
 </div>
 
 ## Curved lines
@@ -419,7 +446,7 @@ void mainImage(out vec4 outColor, in vec2 pos) {
 }
 ```
 
-<canvas></canvas>
+<div class="canvas"></div>
 
 </div>
 
@@ -438,11 +465,11 @@ You can compute the distance to the line and compute the falloff based on that, 
 
 ## NEON ART
 
-That's it! We made shapes of light by deriving analytical integrals. There is much more that you can do with shaders, but I haven't seen this approach elsewhere. Have fun!
+That's it! We made shapes of light by deriving analytical integrals. I haven't seen this approach elsewhere, so I thought it was worth writing about. Have fun!
 
 <div class="shader animated">
 
-<canvas class="big"></canvas>
+<div class="canvas big"></div>
 
 <details>
 <summary>Code</summary>

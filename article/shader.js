@@ -99,7 +99,7 @@ class FullscreenShaderRenderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   }
 
-  draw(program, bounds, time) {
+  draw(program, bounds, time, otherUniforms) {
     if (bounds.bottom < 0 || bounds.top > this.gl.drawingBufferHeight
       || bounds.left < 0 || bounds.right > this.gl.drawingBufferWidth) {
         return
@@ -115,6 +115,11 @@ class FullscreenShaderRenderer {
 
     // pass time to program
     this.gl.uniform1f(this.gl.getUniformLocation(program, "iTime"), time / 1000.0);
+
+    // pass slider values
+    for (let [name, value] of Object.entries(otherUniforms)) {
+      this.gl.uniform1f(this.gl.getUniformLocation(program, name), value);
+    }
 
     // pass canvas size to program
     this.gl.uniform2f(
@@ -163,6 +168,7 @@ class ShaderManager {
   renderer
   staticShaders = new Set()
   animatedShader = null
+  uniformValues = {}
 
   constructor(gl, canvas) {
     this.gl = gl
@@ -220,7 +226,7 @@ class ShaderManager {
 
   drawElement(container, program, time) {
     const bounds = container.getBoundingClientRect();
-    this.renderer.draw(program, bounds, time);
+    this.renderer.draw(program, bounds, time, this.uniformValues);
   }
 
   frameRequested = false
@@ -250,6 +256,13 @@ class ShaderManager {
   onViewportChanged() {
     this.requestFrame();
   }
+
+  setUniform(name, value) {
+    if (this.uniformValues[name] !== value) {
+      this.uniformValues[name] = value;
+      this.requestFrame();
+    }
+  }
 }
 
 function initShader(gl, rootElement, shaderLibCode, shaderManager) {
@@ -265,7 +278,10 @@ function initShader(gl, rootElement, shaderLibCode, shaderManager) {
   }
 
   const isAnimated = rootElement.classList.contains("animated");
-  const container = rootElement.querySelector("canvas");
+  const container = rootElement.querySelector(".canvas");
+
+  const inputs = rootElement.querySelectorAll(".shader-input");
+  inputs.forEach((input) => initInputElement(input, shaderManager));
 
   if (isAnimated) {
     const pauseProgram = createPauseOverlayProgram(gl, shaderLibCode, mainCode);
@@ -273,6 +289,17 @@ function initShader(gl, rootElement, shaderLibCode, shaderManager) {
   } else {
     shaderManager.addStaticShader(container, program);
   }
+}
+
+function initInputElement(inputElement, shaderManager) {
+  function update() {
+    const name = inputElement.dataset.uniform;
+    const value = inputElement.valueAsNumber;
+    shaderManager.setUniform(name, value);
+  }
+
+  inputElement.addEventListener("input", update);
+  update();
 }
 
 function createPauseOverlayProgram(gl, shaderLibCode, mainCode) {
