@@ -45,7 +45,7 @@ vec4 playTriangle(vec2 pos, float radius) {
 void main() {
     vec4 outColor = vec4(0.0);
     mainImage(outColor, v_FragPos.xy);
-    gl_FragColor += outColor * 0.25;
+    gl_FragColor += vec4(outColor.rgb * 0.25, 1.0);
 
     vec4 overlay = 0.75 * playTriangle(v_FragPos.xy, 80.0);
     gl_FragColor = gl_FragColor * (1.0 - overlay.a) + overlay;
@@ -99,7 +99,7 @@ class FullscreenShaderRenderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   }
 
-  draw(program, bounds, time, otherUniforms) {
+  draw(program, bounds, scale, time, otherUniforms) {
     if (bounds.bottom < 0 || bounds.top > this.gl.drawingBufferHeight
       || bounds.left < 0 || bounds.right > this.gl.drawingBufferWidth) {
         return
@@ -109,9 +109,9 @@ class FullscreenShaderRenderer {
 
     this.gl.enable(this.gl.SCISSOR_TEST);
     // y coordinate is from bottom
-    const bottom = this.gl.drawingBufferHeight - bounds.bottom;
-    this.gl.scissor(bounds.left, bottom, bounds.width, bounds.height);
-    this.gl.viewport(bounds.left, bottom, bounds.width, bounds.height);
+    const bottom = this.gl.drawingBufferHeight - bounds.bottom*scale;
+    this.gl.scissor(bounds.left*scale, bottom, bounds.width*scale, bounds.height*scale);
+    this.gl.viewport(bounds.left*scale, bottom, bounds.width*scale, bounds.height*scale);
 
     // pass time to program
     this.gl.uniform1f(this.gl.getUniformLocation(program, "iTime"), time / 1000.0);
@@ -224,24 +224,25 @@ class ShaderManager {
     this.staticShaders.add(shaderElem);
   }
 
-  drawElement(container, program, time) {
+  drawElement(container, program, scale, time) {
     const bounds = container.getBoundingClientRect();
-    this.renderer.draw(program, bounds, time, this.uniformValues);
+    this.renderer.draw(program, bounds, scale, time, this.uniformValues);
   }
 
   frameRequested = false
   drawFrame(time) {
     this.frameRequested = false;
-    resizeCanvas(this.canvas);
+    const scale = window.devicePixelRatio;
+    resizeCanvas(this.canvas, scale);
     this.gl.disable(this.gl.SCISSOR_TEST);
     this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-    this.staticShaders.forEach(s => this.drawElement(s.element, s.program, s.time));
+    this.staticShaders.forEach(s => this.drawElement(s.element, s.program, scale, s.time));
     if (this.animatedShader) {
       console.log("Animate")
       const shader = this.animatedShader;
       shader.time = time;
-      this.drawElement(shader.element, shader.animatedProgram, shader.time);
+      this.drawElement(shader.element, shader.animatedProgram, scale, shader.time);
       this.requestFrame();
     }
   }
@@ -316,7 +317,6 @@ function createRenderingContext(canvas) {
     );
     return null;
   }
-  resizeCanvas(canvas);
   return gl;
 }
 
@@ -326,20 +326,20 @@ function createOverlayCanvas() {
   overlay.style.top = "0";
   overlay.style.left = "0";
   overlay.style.pointerEvents = "none";
-  overlay.style.width = "1px";
-  overlay.style.height = "1px";
+  overlay.style.width = "100vw";
+  overlay.style.height = "100vh";
   overlay.style.transformOrigin = "0 0";
   document.body.appendChild(overlay);
   return overlay;
 }
 
-function resizeCanvas(canvas) {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  const transform = `translate(${window.scrollX}px, ${window.scrollY}px) scale(${w},${h})`
+function resizeCanvas(canvas, scale = 1) {
+  const transform = `translate(${window.scrollX}px, ${window.scrollY}px)`
   if (canvas.style.transform !== transform) {
     canvas.style.transform = transform;
   }
+  const w = canvas.clientWidth * scale;
+  const h = canvas.clientHeight * scale;
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width = w;
     canvas.height = h;

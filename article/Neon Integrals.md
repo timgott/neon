@@ -4,7 +4,7 @@ date: April 2024
 header-includes: |
     <style>
     .shader .canvas {
-        background: black;
+        background: none;
         width: 100%;
         height: 200pt;
         margin: 24pt 0pt;
@@ -88,7 +88,7 @@ void mainImage(out vec4 outColor, in vec2 pos) {
     c += 0.5 * neon_box(pos, center + vec2(-85.0, -7.0), 50.0, z);
     c += neon_triangle(pos, center + vec2(0.0, 0.0), 80.0, z);
     c *= intensity;
-    outColor = vec4(tonemap(c), 0.0);
+    outColor = vec4(tonemap(c), 1.0);
 }
 </script>
 <div class="canvas"></div>
@@ -135,7 +135,7 @@ void mainImage(out vec4 outColor, in vec2 coord) {
     // map to color
     vec3 blue = vec3(0.1, 0.5, 1.0);
     vec3 rgb = v * blue;
-    outColor = vec4(rgb,0.0);
+    outColor = vec4(rgb, 1.0);
 }
 ```
 <div class="canvas"></div>
@@ -371,7 +371,7 @@ void mainImage(out vec4 outColor, in vec2 coord) {
     vec3 color = green * lineNeon(coord, line);
     color *= 20.0;
 
-    outColor = vec4(tonemap(color), 0.0);
+    outColor = vec4(tonemap(color), 1.0);
 }
 ```
 
@@ -442,7 +442,7 @@ void mainImage(out vec4 outColor, in vec2 pos) {
     vec3 color = pink * 2.0 * arcNeon(pos, Arc(vec3(0.0, 0.0, 2.0), 70.0, 0.0, 4.0));
     color *= 5.0;
 
-    outColor = vec4(tonemap(color), 0.0);
+    outColor = vec4(tonemap(color), 1.0);
 }
 ```
 
