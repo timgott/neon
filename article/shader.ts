@@ -64,12 +64,12 @@ void main() {
 
 function setupOnLoad() {
   const canvas = document.body.appendChild(createOverlayCanvas());
-  
+
   const gl = createRenderingContext(canvas);
   if (!gl) return;
 
   // concat shader lib to single header
-  const shaderLib = [...document.querySelectorAll(".shader-lib")].map(e => e.textContent).join("\n");
+  const shaderLib = Array.from(document.querySelectorAll(".shader-lib")).map(e => e.textContent).join("\n");
 
   // compile and add shader elements
   const manager = new ShaderManager(gl, canvas);
@@ -78,11 +78,13 @@ function setupOnLoad() {
   manager.run();
 }
 
-class FullscreenShaderRenderer {
-  gl
-  buffer
+type UniformDict = { [key: string]: number }
 
-  constructor(gl) {
+class FullscreenShaderRenderer {
+  gl: WebGLRenderingContext
+  buffer: WebGLBuffer
+
+  constructor(gl: WebGLRenderingContext) {
     // triangle that covers screen
     const points = new Float32Array([
       -1.0, -1.0,
@@ -91,7 +93,7 @@ class FullscreenShaderRenderer {
     ]);
 
     this.gl = gl;
-    this.buffer = gl.createBuffer();
+    this.buffer = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
 
@@ -99,7 +101,7 @@ class FullscreenShaderRenderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   }
 
-  draw(program, bounds, scale, time, otherUniforms) {
+  draw(program: WebGLProgram, bounds: DOMRect, scale: number, time: number, otherUniforms: UniformDict) {
     if (bounds.bottom < 0 || bounds.top > this.gl.drawingBufferHeight
       || bounds.left < 0 || bounds.right > this.gl.drawingBufferWidth) {
         return
@@ -138,14 +140,14 @@ class FullscreenShaderRenderer {
   }
 }
 
-function compileProgram(gl, vertexShaderSource, fragmentShaderSource) {
-  const program = gl.createProgram();
+function compileProgram(gl: WebGLRenderingContext, vertexShaderSource: string, fragmentShaderSource: string) {
+  const program = gl.createProgram()!;
 
-  const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+  const vertexShader = gl.createShader(gl.VERTEX_SHADER)!;
   gl.shaderSource(vertexShader, vertexShaderSource);
   gl.compileShader(vertexShader);
   gl.attachShader(program, vertexShader);
-  const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+  const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)!;
   gl.shaderSource(fragmentShader, fragmentShaderSource)
   gl.compileShader(fragmentShader);
   gl.attachShader(program, fragmentShader);
@@ -162,15 +164,22 @@ function compileProgram(gl, vertexShaderSource, fragmentShaderSource) {
 
 // holds the programs associated with each canvas
 // tracks running animation and pausing
-class ShaderManager {
-  gl
-  canvas
-  renderer
-  staticShaders = new Set()
-  animatedShader = null
-  uniformValues = {}
+type ShaderElement = {
+  element: Element,
+  program: WebGLProgram,
+  time: number
+}
+type AnimatedShaderElement = ShaderElement & { animatedProgram: WebGLProgram }
 
-  constructor(gl, canvas) {
+class ShaderManager {
+  gl: WebGLRenderingContext
+  canvas: HTMLCanvasElement
+  renderer: FullscreenShaderRenderer
+  staticShaders = new Set<ShaderElement>()
+  animatedShader: AnimatedShaderElement | null = null
+  uniformValues: UniformDict = {}
+
+  constructor(gl: WebGLRenderingContext, canvas: HTMLCanvasElement) {
     this.gl = gl
     this.canvas = canvas
     this.renderer = new FullscreenShaderRenderer(gl);
@@ -182,7 +191,7 @@ class ShaderManager {
     this.requestFrame();
   }
 
-  createShaderElement(element, program, animatedProgram = null) {
+  createShaderElement(element: Element, program: WebGLProgram, animatedProgram?: WebGLProgram): ShaderElement | AnimatedShaderElement {
     return {
       element,
       program,
@@ -191,11 +200,11 @@ class ShaderManager {
     }
   }
 
-  addStaticShader(container, program) {
+  addStaticShader(container: Element, program: WebGLProgram) {
     this.staticShaders.add(this.createShaderElement(container, program));
   }
 
-  play(animatedElement) {
+  play(animatedElement: AnimatedShaderElement) {
     if (this.animatedShader === null) {
       // start animation
       this.requestFrame();
@@ -204,18 +213,19 @@ class ShaderManager {
     this.staticShaders.delete(animatedElement);
   }
 
-  pause() {
-    this.drawElement(this.animatedShader.element, this.animatedShader.program, performance.now());
-    this.staticShaders.add(this.animatedShader);
-    this.animatedShader = null;
+  pause(animatedElement: AnimatedShaderElement) {
+    if (this.animatedShader === animatedElement) {
+      this.staticShaders.add(this.animatedShader);
+      this.animatedShader = null;
+    }
   }
 
-  addAnimatedShader(container, runningProgram, pausedProgram) {
-    const shaderElem = this.createShaderElement(container, pausedProgram, runningProgram);
+  addAnimatedShader(container: Element, runningProgram: WebGLProgram, pausedProgram: WebGLProgram) {
+    const shaderElem = this.createShaderElement(container, pausedProgram, runningProgram) as AnimatedShaderElement;
 
     container.addEventListener("mousedown", () => {
       if (this.animatedShader === shaderElem) {
-        this.pause();
+        this.pause(shaderElem);
       } else {
         this.play(shaderElem);
       }
@@ -224,13 +234,13 @@ class ShaderManager {
     this.staticShaders.add(shaderElem);
   }
 
-  drawElement(container, program, scale, time) {
+  drawElement(container: Element, program: WebGLProgram, scale: number, time: number) {
     const bounds = container.getBoundingClientRect();
     this.renderer.draw(program, bounds, scale, time, this.uniformValues);
   }
 
   frameRequested = false
-  drawFrame(time) {
+  drawFrame(time: number) {
     this.frameRequested = false;
     const scale = window.devicePixelRatio;
     resizeCanvas(this.canvas, scale);
@@ -258,7 +268,7 @@ class ShaderManager {
     this.requestFrame();
   }
 
-  setUniform(name, value) {
+  setUniform(name: string, value: any) {
     if (this.uniformValues[name] !== value) {
       this.uniformValues[name] = value;
       this.requestFrame();
@@ -266,8 +276,8 @@ class ShaderManager {
   }
 }
 
-function initShader(gl, rootElement, shaderLibCode, shaderManager) {
-  const mainCode = rootElement.querySelector(".shader-main").textContent;
+function initShader(gl: WebGLRenderingContext, rootElement: Element, shaderLibCode: string, shaderManager: ShaderManager) {
+  const mainCode = rootElement.querySelector(".shader-main")!.textContent!;
   const fragmentShaderSource = fragmentShaderHeader + shaderLibCode + mainCode + fragmentShaderFooter;
   const program = compileProgram(gl, vertexShaderSource, fragmentShaderSource);
 
@@ -279,10 +289,10 @@ function initShader(gl, rootElement, shaderLibCode, shaderManager) {
   }
 
   const isAnimated = rootElement.classList.contains("animated");
-  const container = rootElement.querySelector(".canvas");
+  const container = rootElement.querySelector(".canvas")!;
 
   const inputs = rootElement.querySelectorAll(".shader-input");
-  inputs.forEach((input) => initInputElement(input, shaderManager));
+  inputs.forEach((input) => initInputElement(input as HTMLInputElement, shaderManager));
 
   if (isAnimated) {
     const pauseProgram = createPauseOverlayProgram(gl, shaderLibCode, mainCode);
@@ -292,9 +302,9 @@ function initShader(gl, rootElement, shaderLibCode, shaderManager) {
   }
 }
 
-function initInputElement(inputElement, shaderManager) {
+function initInputElement(inputElement: HTMLInputElement, shaderManager: ShaderManager) {
   function update() {
-    const name = inputElement.dataset.uniform;
+    const name = inputElement.dataset.uniform!;
     const value = inputElement.valueAsNumber;
     shaderManager.setUniform(name, value);
   }
@@ -303,13 +313,13 @@ function initInputElement(inputElement, shaderManager) {
   update();
 }
 
-function createPauseOverlayProgram(gl, shaderLibCode, mainCode) {
+function createPauseOverlayProgram(gl: WebGLRenderingContext, shaderLibCode: string, mainCode: string) {
   const pauseCode = fragmentShaderHeader + shaderLibCode + mainCode + pauseFragmentFooter;
   return compileProgram(gl, vertexShaderSource, pauseCode);
 }
 
-function createRenderingContext(canvas) {
-  const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+function createRenderingContext(canvas: HTMLCanvasElement | OffscreenCanvas): WebGLRenderingContext | null {
+  const gl = canvas.getContext("webgl") as WebGLRenderingContext | null; // cast not necessary in newer tsc
   if (!gl) {
     alert(
       "Failed to get WebGL context." +
@@ -333,7 +343,7 @@ function createOverlayCanvas() {
   return overlay;
 }
 
-function resizeCanvas(canvas, scale = 1) {
+function resizeCanvas(canvas: HTMLCanvasElement, scale = 1) {
   const transform = `translate(${window.scrollX}px, ${window.scrollY}px)`
   if (canvas.style.transform !== transform) {
     canvas.style.transform = transform;
@@ -346,7 +356,7 @@ function resizeCanvas(canvas, scale = 1) {
   }
 }
 
-function putError(rootElement, errorText) {
+function putError(rootElement: Element, errorText: string) {
   const text = rootElement.appendChild(document.createElement("pre"));
   text.textContent = errorText;
   text.style.color = "red";

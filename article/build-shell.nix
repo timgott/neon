@@ -1,4 +1,4 @@
 { pkgs ? import <nixpkgs> {} }:
 pkgs.mkShell {
-  packages = [ pkgs.pandoc ];
+  packages = [ pkgs.pandoc pkgs.typescript ];
 }

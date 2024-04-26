@@ -1,15 +1,12 @@
 mdfile=Neon\ Integrals.md
-jsfiles=shader.js
+tsfiles=shader.ts
 
 outpath=build
-outfile=$(outpath)/index.html
+outhtml=$(outpath)/index.html
 
-outjs=$(addprefix $(outpath)/,$(jsfiles))
+.PHONY: all clean typescript
 
-
-.PHONY: all clean
-
-all: $(outjs) $(outfile)
+all: compile $(outhtml)
 
 clean:
 	rm $(outpath) -r
@@ -18,8 +15,8 @@ clean:
 $(outpath):
 	mkdir $(outpath)
 
-$(outjs): $(jsfiles) $(outpath)
-	cp $(jsfiles) $(outpath)
+compile: $(tsfiles) $(outpath)
+	tsc --outDir $(outpath)
 
-$(outfile): $(mdfile) $(outpath)
-	pandoc $(mdfile) --standalone --mathml -o $(outfile)
+$(outhtml): $(mdfile) $(outpath)
+	pandoc $(mdfile) --standalone --mathml -o $(outhtml)

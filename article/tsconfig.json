@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+        "lib": [ "ES2017", "DOM" ],
+        "strict": true,
+        "sourceMap": true
+    },
+    "exclude": [
+        "build"
+    ],
+}
