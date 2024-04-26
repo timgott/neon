@@ -4,13 +4,15 @@ tsfiles=shader.ts
 outpath=build
 outhtml=$(outpath)/index.html
 
-.PHONY: all clean typescript
+.PHONY: all clean typescript watch
 
 all: compile $(outhtml)
 
 clean:
 	rm $(outpath) -r
 
+watch:
+	live-server build & ls $(mdfile) $(tsfiles) | entr make all
 
 $(outpath):
 	mkdir $(outpath)
