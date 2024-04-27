@@ -16,10 +16,10 @@ header-includes: |
         display: flex;
         align-items: center;
         gap: 1em;
+        margin: 1em;
     }
     .control-box {
         border: solid #bbb;
-        padding: 1em;
         margin-bottom: -12pt;
     }
     </style>
@@ -88,7 +88,7 @@ void mainImage(out vec4 outColor, in vec2 pos) {
     c += 0.5 * neon_box(pos, center + vec2(-85.0, -7.0), 50.0, z);
     c += neon_triangle(pos, center + vec2(0.0, 0.0), 80.0, z);
     c *= intensity;
-    outColor = vec4(tonemap(c), 1.0);
+    outColor = vec4(tonemap(c, 1.3), 1.0);
 }
 </script>
 <div class="canvas"></div>
@@ -119,6 +119,8 @@ float pointLight(vec3 p, vec3 light) {
 ```
 
 ```glsl {.shader-main}
+uniform float INTENSITY_SLIDER;
+
 void mainImage(out vec4 outColor, in vec2 coord) {
     // screen coordinate to 3d wall position
     vec3 p = vec3(coord, 0.0);
@@ -130,7 +132,7 @@ void mainImage(out vec4 outColor, in vec2 coord) {
     float v = pointLight(p, lightPos);
 
     // multiply by intensity and get final color
-    v *= 1000.0;
+    v *= 500.0 * INTENSITY_SLIDER;
 
     // map to color
     vec3 blue = vec3(0.1, 0.5, 1.0);
@@ -138,6 +140,18 @@ void mainImage(out vec4 outColor, in vec2 coord) {
     outColor = vec4(rgb, 1.0);
 }
 ```
+
+<div class="control-box">
+<label>
+Intensity: 
+<input
+    class="shader-input"
+    data-uniform="INTENSITY_SLIDER"
+    type="range" min="1" value="2.0" max="10.0" step="0.01"
+>
+</label>
+</div>
+
 <div class="canvas"></div>
 </div>
 
@@ -152,9 +166,8 @@ Good, but distorted: the circle in the middle is caused by clipping. We can comp
 
 ```glsl {.shader-lib}
 // Gamma correction
-uniform float gammaSlider; // Move the slider!
-vec3 gamma(vec3 x, float gamma) {
-    return pow(x, vec3(1.0 / gammaSlider));
+vec3 gammaCorrect(vec3 x, float gamma) {
+    return pow(x, vec3(1.0 / gamma));
 }
 
 // Exponential exposure
@@ -162,9 +175,9 @@ vec3 exposure(vec3 x) {
     return 1.0 - exp(-x);
 }
 
-// Combined tone mapping, tuned for appearance on this page
-vec3 tonemap(vec3 x) {
-    return gamma(exposure(x), 1.3);
+// Combined tone mapping
+vec3 tonemap(vec3 x, float gamma) {
+    return gammaCorrect(exposure(x), gamma);
 }
 ```
 
@@ -177,34 +190,38 @@ void mainImage(out vec4 outColor, in vec2 coord) {
 
     // map to color
     vec3 blue = vec3(0.1, 0.5, 1.0);
-    vec3 rgb = tonemap(v * blue);
+    vec3 rgb = tonemap(v * blue, GAMMA_SLIDER); // move the slider!
     outColor = vec4(rgb,1.0);
 }
 ```
 
 <script type="text/x-glsl" class="shader-main">
+uniform float GAMMA_SLIDER; // Move the slider!
+uniform float INTENSITY_SLIDER; // Move the slider!
+
 // hidden!!
 void mainImage(out vec4 outColor, in vec2 coord) {
     // as before...
     vec3 p = vec3(coord, 0.0);
     vec3 light = vec3(0.0, 0.0, 2.0);
     float v = pointLight(p, light);
-    v *= 1000.0;
+    v *= 500.0 * INTENSITY_SLIDER;
 
     // map to color
     vec3 blue = vec3(0.1, 0.5, 1.0);
     //vec3 rgb = coord.x - 0.2*coord.y > 0.0 ? tonemap(v * blue) : v * blue;
-    vec3 rgb = tonemap(v * blue);
+    vec3 rgb = tonemap(v * blue, GAMMA_SLIDER);
     outColor = vec4(rgb,1.0);
 }
 </script>
 </div>
 
-<label class="control-box">
+<div class="control-box">
+<label>
 Gamma: 
 <input
     class="shader-input"
-    data-uniform="gammaSlider"
+    data-uniform="GAMMA_SLIDER"
     type="range" min="0.5" value="1.5" max="3.0" step="0.01"
     list="gamma-ticks"
 >
@@ -212,6 +229,15 @@ Gamma:
     <option value="1.5"></option>
 </datalist>
 </label>
+<label>
+Intensity: 
+<input
+    class="shader-input"
+    data-uniform="INTENSITY_SLIDER"
+    type="range" min="1" value="2.0" max="10.0" step="0.01"
+>
+</label>
+</div>
 
 <div class="canvas"></div>
 </div>
@@ -221,6 +247,11 @@ This looks better. If you want multiple lights, take the sum of their intensitie
 <div class="shader">
 
 ```glsl {.shader-main}
+
+uniform float INTENSITY_R;
+uniform float INTENSITY_G;
+uniform float INTENSITY_B;
+
 void mainImage(out vec4 outColor, in vec2 coord) {
     vec3 p = vec3(coord, 0.0);
 
@@ -229,15 +260,42 @@ void mainImage(out vec4 outColor, in vec2 coord) {
     vec3 blue = vec3(0.2, 0.2, 1.0);
 
     vec3 color;
-    color += red * pointLight(p, vec3(0.0, 30.0, 5.0));
-    color += green * pointLight(p, vec3(-30.0, -20.0, 5.0));
-    color += blue * pointLight(p, vec3(30.0, -20.0, 5.0));
+    color += INTENSITY_R * red * pointLight(p, vec3(0.0, 30.0, 5.0));
+    color += INTENSITY_G * green * pointLight(p, vec3(-30.0, -20.0, 5.0));
+    color += INTENSITY_B * blue * pointLight(p, vec3(30.0, -20.0, 5.0));
     color *= 400.0;
 
-    color = tonemap(color);
+    color = tonemap(color, 1.3);
     outColor = vec4(color,1.0);
 }
 ```
+
+<div class="control-box">
+<label>
+R 
+<input
+    class="shader-input"
+    data-uniform="INTENSITY_R"
+    type="range" min="0" value="1.0" max="10.0" step="0.001"
+>
+</label>
+<label>
+G 
+<input
+    class="shader-input"
+    data-uniform="INTENSITY_G"
+    type="range" min="0" value="1.0" max="10.0" step="0.001"
+>
+</label>
+<label>
+B 
+<input
+    class="shader-input"
+    data-uniform="INTENSITY_B"
+    type="range" min="0" value="1.0" max="10.0" step="0.001"
+>
+</label>
+</div>
 
 <div class="canvas"></div>
 </div>
@@ -250,21 +308,38 @@ Think of a line as an continuous set of points. We want each of these points to 
 
 <div class="shader">
 
+<div class="control-box">
+<label>
+Steps: 
+<input
+    class="shader-input"
+    data-uniform="STEPS"
+    type="range" min="2" value="20.0" max="50.0" step="1"
+>
+</label>
+</div>
+
 <script type="text/x-glsl" class="shader-main">
+uniform float STEPS;
+
 void mainImage(out vec4 outColor, in vec2 coord) {
     vec3 p = vec3(coord, 0.0);
 
     vec3 red = vec3(1.0, 0.2, 0.2);
 
     vec3 color;
-    const float step = 1./20.;
+    float step = 1./STEPS;
     vec3 line = vec3(300.0, 50.0, 0.0);
-    for (float t = 0.0; t < 1.0; t += step) {
-        color += red * step * pointLight(p, line * (t - 0.5));
+    float t = 0.;
+    for (float i = 0.; i < 100.; i++) {
+        if (i <= STEPS) {
+            color += red * step * pointLight(p, line * (t - 0.5));
+        }
+        t += step;
     }
     color *= length(line) * 20.0;
 
-    color = tonemap(color);
+    color = tonemap(color, 1.3);
     outColor = vec4(color,1.0);
 }
 </script>
@@ -272,35 +347,11 @@ void mainImage(out vec4 outColor, in vec2 coord) {
 <div class="canvas"></div>
 </div>
 
-With 20 points, you can still see gaps. Increase it to 50:
+Now this looks cool! But what did it cost? Loops are expensive in shaders and the longer the line, the more points you need. This technique works fine for a single line like here, but it needs to be as efficient as possible for a real time animation.
 
-<div class="shader">
+Can we do better?
 
-<script type="text/x-glsl" class="shader-main">
-void mainImage(out vec4 outColor, in vec2 coord) {
-    vec3 p = vec3(coord, 0.0);
-
-    vec3 red = vec3(1.0, 0.2, 0.2);
-
-    vec3 color;
-    const float step = 1./50.;
-    vec3 line = vec3(300.0, 50.0, 0.0);
-    for (float t = 0.0; t < 1.0; t += step) {
-        color += red * step * pointLight(p, line * (t - 0.5));
-    }
-    color *= length(line) * 20.0;
-
-    color = tonemap(color);
-    outColor = vec4(color,1.0);
-}
-</script>
-
-<div class="canvas"></div>
-</div>
-
-Now this looks cool! But what did it cost? Loops are expensive in shaders and the longer the line, the more points you need. This technique works fine for a static illustration like here, but it needs to be more efficient for a real time animation.
-
-Can we do better? We can, by deriving a closed formula for a continuous line! That will get us the result for infinite points --- what was a sum now becomes an integral. For a line from $0, 0, 0$ to $x,y,z,$ that is
+Derive a closed formula for a continuous line! That will get us the result for infinite points --- what was a sum now becomes an integral. For a line from $0, 0, 0$ to $x,y,z,$ that is
 
 $$
 \int_0^1 L(u-tx,u-ty,w - tz) \, dt,
@@ -364,16 +415,38 @@ Demonstrating this formula:
 <div class="shader">
 
 ```glsl {.shader-main}
+uniform float INTENSITY_SLIDER;
+uniform float Z_SLIDER;
+
 void mainImage(out vec4 outColor, in vec2 coord) {
     vec3 green = vec3(0.2, 0.7, 0.3);
 
-    Line line = Line(vec2(150.0, 25.0), vec2(-150.0, -25.0), 0.0);
+    Line line = Line(vec2(150.0, 25.0), vec2(-150.0, -25.0), Z_SLIDER);
     vec3 color = green * lineNeon(coord, line);
-    color *= 20.0;
+    color *= INTENSITY_SLIDER;
 
-    outColor = vec4(tonemap(color), 1.0);
+    outColor = vec4(tonemap(color, 1.3), 1.0);
 }
 ```
+
+<div class="control-box">
+<label>
+Intensity: 
+<input
+    class="shader-input"
+    data-uniform="INTENSITY_SLIDER"
+    type="range" min="2.0" value="20.0" max="100.0" step="0.01"
+>
+</label>
+<label>
+Distance from wall: 
+<input
+    class="shader-input"
+    data-uniform="Z_SLIDER"
+    type="range" min="1" value="2.0" max="50.0" step="0.01"
+>
+</label>
+</div>
 
 <div class="canvas"></div>
 </div>
@@ -436,15 +509,49 @@ Testing this formula:
 <div class="shader">
 
 ```glsl {.shader-main}
+uniform float INTENSITY;
+uniform float ARC_START;
+uniform float ARC_ANGLE;
+
 void mainImage(out vec4 outColor, in vec2 pos) {
     vec3 pink = vec3(1.0, 0.1, 1.0);
 
-    vec3 color = pink * 2.0 * arcNeon(pos, Arc(vec3(0.0, 0.0, 2.0), 70.0, 0.0, 4.0));
+    float a = ARC_START;
+    float b = ARC_START+ARC_ANGLE;
+    Arc arc = Arc(vec3(0.0, 0.0, 2.0), 70.0, a, b);
+    vec3 color = pink * INTENSITY * arcNeon(pos, arc);
     color *= 5.0;
 
-    outColor = vec4(tonemap(color), 1.0);
+    outColor = vec4(tonemap(color, 1.3), 1.0);
 }
 ```
+
+<div class="control-box">
+<label>
+Intensity: 
+<input
+    class="shader-input"
+    data-uniform="INTENSITY"
+    type="range" min="1.0" value="2.0" max="10.0" step="0.01"
+>
+</label>
+<label>
+Start: 
+<input
+    class="shader-input"
+    data-uniform="ARC_START"
+    type="range" min="-1" value="0.0" max="10.0" step="0.01"
+>
+</label>
+<label>
+Angle: 
+<input
+    class="shader-input"
+    data-uniform="ARC_ANGLE"
+    type="range" min="0.0" value="4.0" max="20.0" step="0.01"
+>
+</label>
+</div>
 
 <div class="canvas"></div>
 
@@ -548,7 +655,7 @@ vec4 demoBeatingHeart(vec2 uvpos) {
     c += red * intensity * heartAnimated(uvpos, z, 1.5, time * bpmFactor * 1.0 + 0.0);
     c += blue * 0.1 * heartAnimated(uvpos, z, 2.0, time*0.3+1.0);
     c += pink * 1.0 * pointLight(vec3(uvpos, z), vec3(0.0, 0.2, 0.5+beat*0.2));
-    return vec4(tonemap(c), 1.0);
+    return vec4(tonemap(c, 1.3), 1.0);
 }
 
 void mainImage(out vec4 out_color, in vec2 uvpos) {
