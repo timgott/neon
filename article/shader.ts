@@ -178,16 +178,24 @@ class ShaderManager {
   renderer: FullscreenShaderRenderer
   staticShaders = new Set<ShaderElement>()
   animatedShader: AnimatedShaderElement | null = null
+  observer: MutationObserver
 
   constructor(gl: WebGLRenderingContext, canvas: HTMLCanvasElement) {
     this.gl = gl
     this.canvas = canvas
     this.renderer = new FullscreenShaderRenderer(gl);
+    this.observer = new MutationObserver(() => {
+      console.log("Resize observed!!")
+      this.onViewportChanged()
+    });
   }
 
   run() {
+    // viewport size changes
     window.addEventListener("resize", () => this.onViewportChanged(), { passive: true });
     window.addEventListener("scroll", () => this.onViewportChanged(), { passive: true });
+    // detect details tags opening
+    this.observer.observe(document.body, { subtree: true, attributeFilter: ["open"]});
     this.requestFrame();
   }
 
@@ -201,8 +209,13 @@ class ShaderManager {
     }
   }
 
+  registerContainer(container: Element) {
+    //this.observer.observe(container, {attributes: true, childList: true, subtree: true});
+  }
+
   addStaticShader(container: Element, program: WebGLProgram): ShaderElement {
     const elem = this.createShaderElement(container, program);
+    this.registerContainer(container);
     this.staticShaders.add(elem);
     return elem;
   }
@@ -225,6 +238,7 @@ class ShaderManager {
 
   addAnimatedShader(container: Element, runningProgram: WebGLProgram, pausedProgram: WebGLProgram): AnimatedShaderElement {
     const shaderElem = this.createShaderElement(container, pausedProgram, runningProgram) as AnimatedShaderElement;
+    this.registerContainer(container);
 
     container.addEventListener("mousedown", () => {
       if (this.animatedShader === shaderElem) {

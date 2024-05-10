@@ -20,7 +20,19 @@ header-includes: |
     }
     .control-box {
         border: solid #bbb;
+        margin-top: 12pt;
         margin-bottom: -12pt;
+    }
+    details {
+        padding: 0.5em 1em;
+        border-left: solid transparent;
+    }
+    details[open] {
+        border-left: solid #ddd;
+    }
+    .canvas + details {
+        margin-top: -12pt;
+        margin-bottom: 24pt;
     }
     </style>
 include-after: <script src="./shader.js"></script>
@@ -104,9 +116,28 @@ $$
 L(x,y,z) = \frac{1}{\|p-q\|^2} = \frac{1}{(x-u)^2+(y-v)^2+(z-w)^2}.
 $$
 
-That is all we need to paint this. Let's do this with a pixel shader à la [Shadertoy](https://www.shadertoy.com/). A pixel shader computes the output color at every coordinate (the coordinate $0, 0$ is in the middle for simplicity).
+That is all we need to paint this. Let's put this formula into a pixel shader à la [Shadertoy](https://www.shadertoy.com/).
+
 
 <div class="shader">
+
+<div class="control-box">
+<label>
+Intensity: 
+<input
+    class="shader-input"
+    data-uniform="INTENSITY_SLIDER"
+    type="range" min="1" value="2.0" max="10.0" step="0.01"
+>
+</label>
+</div>
+
+<div class="canvas"></div>
+
+<details>
+<summary>Show **point light** code</summary>
+
+A pixel shader computes the output color at every coordinate. The coordinate $(0, 0)$ is in the middle for simplicity here.
 
 ```glsl {.shader-lib}
 float pointLight(vec3 p, vec3 light) {
@@ -140,22 +171,11 @@ void mainImage(out vec4 outColor, in vec2 coord) {
     outColor = vec4(rgb, 1.0);
 }
 ```
+</details>
 
-<div class="control-box">
-<label>
-Intensity: 
-<input
-    class="shader-input"
-    data-uniform="INTENSITY_SLIDER"
-    type="range" min="1" value="2.0" max="10.0" step="0.01"
->
-</label>
 </div>
 
-<div class="canvas"></div>
-</div>
-
-Good, but distorted: the circle in the middle is caused by clipping. We can compress light intensity to perceived brightness with [exposure][] and [gamma correction][]:
+Good, but it looks distorted: the circle in the middle is caused by clipping. We now compress light intensity to perceived brightness with [exposure][] and [gamma correction][]:
 
 [exposure]: https://web.archive.org/web/20160418004149/http://freespace.virgin.net/hugo.elias/graphics/x_posure.htm
 [gamma correction]: https://en.wikipedia.org/wiki/Gamma_correction
@@ -174,46 +194,10 @@ vec3 gammaCorrect(vec3 x, float gamma) {
 vec3 exposure(vec3 x) {
     return 1.0 - exp(-x);
 }
-
-// Combined tone mapping
-vec3 tonemap(vec3 x, float gamma) {
-    return gammaCorrect(exposure(x), gamma);
-}
 ```
 
-Now apply that to the final color:
+Now apply that to the final image:
 
-```glsl
-void mainImage(out vec4 outColor, in vec2 coord) {
-    // compute light intensity as before
-    float v = ...;
-
-    // map to color
-    vec3 blue = vec3(0.1, 0.5, 1.0);
-    vec3 rgb = tonemap(v * blue, GAMMA_SLIDER); // move the slider!
-    outColor = vec4(rgb,1.0);
-}
-```
-
-<script type="text/x-glsl" class="shader-main">
-uniform float GAMMA_SLIDER; // Move the slider!
-uniform float INTENSITY_SLIDER; // Move the slider!
-
-// hidden!!
-void mainImage(out vec4 outColor, in vec2 coord) {
-    // as before...
-    vec3 p = vec3(coord, 0.0);
-    vec3 light = vec3(0.0, 0.0, 2.0);
-    float v = pointLight(p, light);
-    v *= 500.0 * INTENSITY_SLIDER;
-
-    // map to color
-    vec3 blue = vec3(0.1, 0.5, 1.0);
-    //vec3 rgb = coord.x - 0.2*coord.y > 0.0 ? tonemap(v * blue) : v * blue;
-    vec3 rgb = tonemap(v * blue, GAMMA_SLIDER);
-    outColor = vec4(rgb,1.0);
-}
-</script>
 </div>
 
 <div class="control-box">
@@ -237,38 +221,57 @@ Intensity:
     type="range" min="1" value="2.0" max="10.0" step="0.01"
 >
 </label>
+<label>
+Compare: 
+<input
+    class="shader-input"
+    data-uniform="COMPARE_SLIDER"
+    type="range" min="-0.6" value="-0.6" max="0.1" step="0.001"
+>
+</label>
 </div>
 
 <div class="canvas"></div>
+
+<details>
+<summary>Show **tone mapping** example code</summary>
+
+Using the `pointLight` function from above:
+
+```glsl {.shader-lib}
+// Combined tone mapping
+vec3 tonemap(vec3 x, float gamma) {
+    return gammaCorrect(exposure(x), gamma);
+}
+```
+
+```glsl {.shader-main}
+// Move the sliders!
+uniform float GAMMA_SLIDER;
+uniform float INTENSITY_SLIDER;
+uniform float COMPARE_SLIDER;
+
+void mainImage(out vec4 outColor, in vec2 coord) {
+    // as before...
+    vec3 p = vec3(coord, 0.0);
+    vec3 light = vec3(0.0, 0.0, 2.0);
+    float v = pointLight(p, light);
+    v *= 500.0 * INTENSITY_SLIDER;
+
+    // map to color
+    vec3 blue = vec3(0.1, 0.5, 1.0);
+    float split = COMPARE_SLIDER * iResolution.x;
+    vec3 rgb = coord.x - 0.2*coord.y > split ? tonemap(v * blue, GAMMA_SLIDER) : v * blue;
+    outColor = vec4(rgb,1.0);
+}
+```
+</details>
+
 </div>
 
 This looks better. If you want multiple lights, take the sum of their intensities:
 
 <div class="shader">
-
-```glsl {.shader-main}
-
-uniform float INTENSITY_R;
-uniform float INTENSITY_G;
-uniform float INTENSITY_B;
-
-void mainImage(out vec4 outColor, in vec2 coord) {
-    vec3 p = vec3(coord, 0.0);
-
-    vec3 red = vec3(1.0, 0.2, 0.2);
-    vec3 green = vec3(0.2, 1.0, 0.2);
-    vec3 blue = vec3(0.2, 0.2, 1.0);
-
-    vec3 color;
-    color += INTENSITY_R * red * pointLight(p, vec3(0.0, 30.0, 5.0));
-    color += INTENSITY_G * green * pointLight(p, vec3(-30.0, -20.0, 5.0));
-    color += INTENSITY_B * blue * pointLight(p, vec3(30.0, -20.0, 5.0));
-    color *= 400.0;
-
-    color = tonemap(color, 1.3);
-    outColor = vec4(color,1.0);
-}
-```
 
 <div class="control-box">
 <label>
@@ -298,6 +301,35 @@ B
 </div>
 
 <div class="canvas"></div>
+
+<details>
+<summary>Show **three lights** example code</summary>
+```glsl {.shader-main}
+
+uniform float INTENSITY_R;
+uniform float INTENSITY_G;
+uniform float INTENSITY_B;
+
+void mainImage(out vec4 outColor, in vec2 coord) {
+    vec3 p = vec3(coord, 0.0);
+
+    vec3 red = INTENSITY_R * vec3(1.0, 0.2, 0.2);
+    vec3 green = INTENSITY_G * vec3(0.2, 1.0, 0.2);
+    vec3 blue = INTENSITY_B * vec3(0.2, 0.2, 1.0);
+
+    vec3 color;
+    color += red * pointLight(p, vec3(0.0, 30.0, 5.0));
+    color += green * pointLight(p, vec3(-30.0, -20.0, 5.0));
+    color += blue * pointLight(p, vec3(30.0, -20.0, 5.0));
+    color *= 400.0;
+
+    color = tonemap(color, 1.3);
+    outColor = vec4(color,1.0);
+}
+```
+</details>
+
+
 </div>
 
 ## Integrating the line
@@ -414,21 +446,6 @@ Demonstrating this formula:
 
 <div class="shader">
 
-```glsl {.shader-main}
-uniform float INTENSITY_SLIDER;
-uniform float Z_SLIDER;
-
-void mainImage(out vec4 outColor, in vec2 coord) {
-    vec3 green = vec3(0.2, 0.7, 0.3);
-
-    Line line = Line(vec2(150.0, 25.0), vec2(-150.0, -25.0), Z_SLIDER);
-    vec3 color = green * lineNeon(coord, line);
-    color *= INTENSITY_SLIDER;
-
-    outColor = vec4(tonemap(color, 1.3), 1.0);
-}
-```
-
 <div class="control-box">
 <label>
 Intensity: 
@@ -449,6 +466,28 @@ Distance from wall:
 </div>
 
 <div class="canvas"></div>
+
+<details>
+<summary>Show example for **neon line**</summary>
+
+Using the `lineNeon` function from above:
+
+```glsl {.shader-main}
+uniform float INTENSITY_SLIDER;
+uniform float Z_SLIDER;
+
+void mainImage(out vec4 outColor, in vec2 coord) {
+    vec3 green = vec3(0.2, 0.7, 0.3);
+
+    Line line = Line(vec2(150.0, 25.0), vec2(-150.0, -25.0), Z_SLIDER);
+    vec3 color = green * lineNeon(coord, line);
+    color *= INTENSITY_SLIDER;
+
+    outColor = vec4(tonemap(color, 1.3), 1.0);
+}
+```
+</details>
+
 </div>
 
 ## Curved lines
@@ -461,7 +500,7 @@ integrate(1/((x - sin(t))^2 + (y - cos(t))^2 + z^2), t)
 
 Assume the radius is 1 for now. Reducing the number of variables makes it easier to derive for both the computer and for ourselves. We can correct for that later by scaling the coordinates.
 
-Wolfram Alpha does not handle larger periodic $t$ values directly (you have to add the `floor` part). I have computed this using Sage Math and manually rewritten:
+Wolfram Alpha does not handle larger periodic $t$ values directly (you have to add the `floor` part below). I have computed this using Sage Math and manually rewritten a bit to make it shorter:
 
 ```glsl {.shader-lib}
 #define M_PI 3.14159265359
@@ -508,24 +547,6 @@ Testing this formula:
 
 <div class="shader">
 
-```glsl {.shader-main}
-uniform float INTENSITY;
-uniform float ARC_START;
-uniform float ARC_ANGLE;
-
-void mainImage(out vec4 outColor, in vec2 pos) {
-    vec3 pink = vec3(1.0, 0.1, 1.0);
-
-    float a = ARC_START;
-    float b = ARC_START+ARC_ANGLE;
-    Arc arc = Arc(vec3(0.0, 0.0, 2.0), 70.0, a, b);
-    vec3 color = pink * INTENSITY * arcNeon(pos, arc);
-    color *= 5.0;
-
-    outColor = vec4(tonemap(color, 1.3), 1.0);
-}
-```
-
 <div class="control-box">
 <label>
 Intensity: 
@@ -554,6 +575,29 @@ Angle:
 </div>
 
 <div class="canvas"></div>
+
+<details>
+<summary>Show example code for **arc**</summary>
+
+```glsl {.shader-main}
+uniform float INTENSITY;
+uniform float ARC_START;
+uniform float ARC_ANGLE;
+
+void mainImage(out vec4 outColor, in vec2 pos) {
+    vec3 pink = vec3(1.0, 0.1, 1.0);
+
+    float a = ARC_START;
+    float b = ARC_START+ARC_ANGLE;
+    Arc arc = Arc(vec3(0.0, 0.0, 2.0), 70.0, a, b);
+    vec3 color = pink * INTENSITY * arcNeon(pos, arc);
+    color *= 5.0;
+
+    outColor = vec4(tonemap(color, 1.3), 1.0);
+}
+```
+
+</details>
 
 </div>
 
